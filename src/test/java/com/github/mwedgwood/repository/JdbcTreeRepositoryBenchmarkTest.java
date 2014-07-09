@@ -37,8 +37,6 @@ public class JdbcTreeRepositoryBenchmarkTest {
 
     @Test
     public void testFindEntireTree() throws Exception {
-        JdbcTreeRepositoryImpl repository = new JdbcTreeRepositoryImpl(dbi);
-
         long start = System.currentTimeMillis();
         Tree entireTree = repository.findEntireTree(rootId);
         System.out.println("Time to find tree: " + (System.currentTimeMillis() - start) + " ms");
