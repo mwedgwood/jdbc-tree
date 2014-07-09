@@ -141,14 +141,14 @@ public class JdbcTreeRepositoryImplTest {
         return id;
     }
 
-    private Integer getId(Handle handle, String name) {
+    static Integer getId(Handle handle, String name) {
         return handle.createQuery("select id from tree where name = :name")
                 .bind("name", name)
                 .map(IntegerMapper.FIRST)
                 .first();
     }
 
-    private void reCreateTreeTable(Handle handle) {
+    static void reCreateTreeTable(Handle handle) {
         handle.execute("DROP TABLE IF EXISTS tree");
 
         handle.execute("CREATE TABLE tree ( \n" +

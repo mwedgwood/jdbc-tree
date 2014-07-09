@@ -93,12 +93,18 @@ public class JdbcTreeRepositoryImpl implements TreeRepository {
     @Override
     public void save(Tree entity) {
         Handle handle = dbi.open();
+        save(entity, handle);
+        handle.close();
+    }
 
+    void save(Tree entity, Handle handle) {
         Node node = entity.getNode();
         handle.execute("insert into tree (name, description, parent_id, children_order) values (?, ?, ?, ?)",
                 node.getName(), node.getDescription(), node.getParentId(), node.getOrder());
 
-        handle.close();
+        for (Tree child : entity.getChildren()) {
+            save(child, handle);
+        }
     }
 
     @Override
