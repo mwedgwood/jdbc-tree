@@ -2,6 +2,7 @@ package com.github.mwedgwood.repository;
 
 import com.github.mwedgwood.model.tree.Node;
 import com.github.mwedgwood.model.tree.Tree;
+import org.skife.jdbi.v2.DBI;
 import org.skife.jdbi.v2.Handle;
 import org.skife.jdbi.v2.util.TypedMapper;
 
@@ -11,30 +12,40 @@ import java.util.List;
 
 public class JdbcTreeRepositoryImpl implements TreeRepository {
 
-    private final Handle handle;
+    private static final String BASE_RECURSIVE_QUERY = "" +
+            "  WITH RECURSIVE children AS (\n" +
+            "    SELECT t.id, t.description, t.name, t.parent_id, t.children_order, 1 AS depth\n" +
+            "    FROM tree t\n" +
+            "    WHERE t.id = :id\n" +
+            "  UNION ALL\n" +
+            "    SELECT a.id, a.description, a.name, a.parent_id, a.children_order, depth+1\n" +
+            "    FROM tree a\n" +
+            "    JOIN children b ON (a.parent_id = b.id)\n" +
+            ")\n";
 
-    protected JdbcTreeRepositoryImpl(Handle handle) {
-        this.handle = handle;
+    private final DBI dbi;
+
+    public JdbcTreeRepositoryImpl(DBI dbi) {
+        this.dbi = dbi;
     }
 
     @Override
     public Tree findEntireTree(Integer rootId) {
-        String sql =
-                "  WITH RECURSIVE children AS (\n" +
-                "    SELECT t.id, t.description, t.name, t.parent_id, t.children_order, 1 AS depth\n" +
-                "    FROM tree t\n" +
-                "    WHERE t.id = :id\n" +
-                "  UNION ALL\n" +
-                "    SELECT a.id, a.description, a.name, a.parent_id, a.children_order, depth+1\n" +
-                "    FROM tree a\n" +
-                "    JOIN children b ON (a.parent_id = b.id)\n" +
-                ")\n" +
+        return findById(rootId);
+    }
+
+    @Override
+    public Tree findByIdForDepth(Integer id, Integer depth) {
+        String sql = BASE_RECURSIVE_QUERY +
                 "SELECT t.id, t.name, t.description, t.parent_id, t.children_order, 1 AS depth\n" +
                 "FROM children t\n" +
-                "ORDER BY t.parent_id, t.depth, t.children_order;";
+                "WHERE depth <= :depth";
+
+        Handle handle = dbi.open();
 
         List<Node> nodes = handle.createQuery(sql)
-                .bind("id", rootId)
+                .bind("id", id)
+                .bind("depth", depth)
                 .map(new NodeMapper())
                 .list();
 
@@ -44,13 +55,21 @@ public class JdbcTreeRepositoryImpl implements TreeRepository {
     }
 
     @Override
-    public Tree findByIdForDepth(Integer id, Integer depth) {
-        return null;
-    }
-
-    @Override
     public Tree findById(Integer id) {
-        return null;
+        String sql = BASE_RECURSIVE_QUERY +
+                "SELECT t.id, t.name, t.description, t.parent_id, t.children_order, 1 AS depth\n" +
+                "FROM children t\n";
+
+        Handle handle = dbi.open();
+
+        List<Node> nodes = handle.createQuery(sql)
+                .bind("id", id)
+                .map(new NodeMapper())
+                .list();
+
+        handle.close();
+
+        return Tree.fromList(nodes);
     }
 
     @Override

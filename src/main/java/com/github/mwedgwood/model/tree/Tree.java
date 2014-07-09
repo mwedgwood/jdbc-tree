@@ -37,14 +37,14 @@ public class Tree {
     }
 
     public static Tree fromList(List<Node> nodes) {
-        Map<Integer, Tree> parents = new HashMap<>();
+        Map<Integer, Tree> parents = new LinkedHashMap<>();
         Tree root = null;
 
         for (Node node : nodes) {
             Integer parentId = node.getParentId();
             Tree tree = new Tree(node);
 
-            if (parentId == null) {
+            if (parentId == null || parentId == 0) {
                 root = tree;
             }
 
@@ -55,7 +55,7 @@ public class Tree {
 
             parents.put(node.getId(), tree);
         }
-        return root;
+        return root == null && !parents.isEmpty() ? parents.values().iterator().next() : root;
     }
 
     private Tree() {
@@ -85,6 +85,7 @@ public class Tree {
 
     public Tree addChild(Tree tree) {
         this.children.add(tree);
+        tree.setParent(this);
         return this;
     }
 
@@ -164,7 +165,7 @@ public class Tree {
     }
 
     private String prettyPrint(Tree tree, String prefix, boolean isTail) {
-        StringBuilder stringBuilder = new StringBuilder(prefix).append((isTail ? "└── " : "├── ")).append(node.getName()).append("\n");
+        StringBuilder stringBuilder = new StringBuilder(prefix).append((isTail ? "└── " : "├── ")).append(tree.node.getName()).append("\n");
 
         for (Iterator<Tree> iterator = tree.children.iterator(); iterator.hasNext(); ) {
             stringBuilder.append(prettyPrint(iterator.next(), prefix + (isTail ? "    " : "│   "), !iterator.hasNext()));

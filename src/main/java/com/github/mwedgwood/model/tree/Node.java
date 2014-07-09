@@ -61,4 +61,15 @@ public class Node {
         this.order = order;
         return this;
     }
+
+    @Override
+    public String toString() {
+        return "Node{" +
+                "id=" + id +
+                ", parentId=" + parentId +
+                ", order=" + order +
+                ", name='" + name + '\'' +
+                ", description='" + description + '\'' +
+                '}';
+    }
 }

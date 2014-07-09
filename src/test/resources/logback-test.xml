@@ -11,6 +11,7 @@
     </appender>
 
     <logger name="org.skife.jdbi.v2" level="DEBUG"/>
+    <logger name="org.postgresql" level="DEBUG"/>
 
     <root>
         <level value="WARN"/>
