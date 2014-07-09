@@ -4,6 +4,8 @@ import com.github.mwedgwood.model.tree.Node;
 import com.github.mwedgwood.model.tree.Tree;
 import org.skife.jdbi.v2.DBI;
 import org.skife.jdbi.v2.Handle;
+import org.skife.jdbi.v2.tweak.HandleCallback;
+import org.skife.jdbi.v2.util.IntegerMapper;
 import org.skife.jdbi.v2.util.TypedMapper;
 
 import java.sql.ResultSet;
@@ -30,59 +32,62 @@ public class JdbcTreeRepositoryImpl implements TreeRepository {
     }
 
     @Override
-    public Tree findEntireTree(Integer rootId) {
-        String sql = BASE_RECURSIVE_QUERY +
-                "SELECT t.id, t.name, t.description, t.parent_id, t.children_order, 1 AS depth\n" +
-                "FROM children t\n";
+    public Tree findEntireTree(final Integer rootId) {
+        return dbi.withHandle(new HandleCallback<Tree>() {
+            @Override
+            public Tree withHandle(Handle handle) throws Exception {
+                String sql = BASE_RECURSIVE_QUERY +
+                        "SELECT t.id, t.name, t.description, t.parent_id, t.children_order, 1 AS depth\n" +
+                        "FROM children t\n";
 
-        Handle handle = dbi.open();
+                List<Node> nodes = handle.createQuery(sql)
+                        .bind("id", rootId)
+                        .map(new NodeMapper())
+                        .list();
 
-        List<Node> nodes = handle.createQuery(sql)
-                .bind("id", rootId)
-                .map(new NodeMapper())
-                .list();
-
-        handle.close();
-
-        return Tree.fromList(nodes);
+                return Tree.fromList(nodes);
+            }
+        });
     }
 
     @Override
-    public Tree findByIdForDepth(Integer id, Integer depth) {
-        String sql = BASE_RECURSIVE_QUERY +
-                "SELECT t.id, t.name, t.description, t.parent_id, t.children_order, 1 AS depth\n" +
-                "FROM children t\n" +
-                "WHERE depth <= :depth";
+    public Tree findByIdForDepth(final Integer id, final Integer depth) {
+        return dbi.withHandle(new HandleCallback<Tree>() {
+            @Override
+            public Tree withHandle(Handle handle) throws Exception {
+                String sql = BASE_RECURSIVE_QUERY +
+                        "SELECT t.id, t.name, t.description, t.parent_id, t.children_order, 1 AS depth\n" +
+                        "FROM children t\n" +
+                        "WHERE depth <= :depth";
 
-        Handle handle = dbi.open();
+                List<Node> nodes = handle.createQuery(sql)
+                        .bind("id", id)
+                        .bind("depth", depth)
+                        .map(new NodeMapper())
+                        .list();
 
-        List<Node> nodes = handle.createQuery(sql)
-                .bind("id", id)
-                .bind("depth", depth)
-                .map(new NodeMapper())
-                .list();
-
-        handle.close();
-
-        return Tree.fromList(nodes);
+                return Tree.fromList(nodes);
+            }
+        });
     }
 
     @Override
-    public Tree findById(Integer id) {
-        String sql = "SELECT t.id, t.name, t.description, t.parent_id, t.children_order, 1 AS depth\n" +
-                "FROM tree t\n" +
-                "WHERE t.id = :id";
+    public Tree findById(final Integer id) {
+        return dbi.withHandle(new HandleCallback<Tree>() {
+            @Override
+            public Tree withHandle(Handle handle) throws Exception {
+                String sql = "SELECT t.id, t.name, t.description, t.parent_id, t.children_order, 1 AS depth\n" +
+                        "FROM tree t\n" +
+                        "WHERE t.id = :id";
 
-        Handle handle = dbi.open();
+                List<Node> nodes = handle.createQuery(sql)
+                        .bind("id", id)
+                        .map(new NodeMapper())
+                        .list();
 
-        List<Node> nodes = handle.createQuery(sql)
-                .bind("id", id)
-                .map(new NodeMapper())
-                .list();
-
-        handle.close();
-
-        return Tree.fromList(nodes);
+                return Tree.fromList(nodes);
+            }
+        });
     }
 
     @Override
@@ -91,16 +96,31 @@ public class JdbcTreeRepositoryImpl implements TreeRepository {
     }
 
     @Override
-    public void save(Tree entity) {
-        Handle handle = dbi.open();
-        save(entity, handle);
-        handle.close();
+    public void save(final Tree entity) {
+        dbi.withHandle(new HandleCallback<Object>() {
+            @Override
+            public Object withHandle(Handle handle) throws Exception {
+                save(entity, handle);
+                return null;
+            }
+        });
     }
 
     void save(Tree entity, Handle handle) {
         Node node = entity.getNode();
-        handle.execute("insert into tree (name, description, parent_id, children_order) values (?, ?, ?, ?)",
-                node.getName(), node.getDescription(), node.getParentId(), node.getOrder());
+
+        Integer parentId = node.getParentId() == null && entity.getParent() != null ?
+                entity.getParent().getNode().getId() :
+                node.getParentId();
+
+        Integer id = handle.createStatement("insert into tree (name, description, parent_id, children_order) values (:name, :description, :parentId, :childrenOrder)")
+                .bind("name", node.getName())
+                .bind("description", node.getDescription())
+                .bind("parentId", parentId)
+                .bind("childrenOrder", node.getOrder())
+                .executeAndReturnGeneratedKeys(IntegerMapper.FIRST).first();
+
+        entity.getNode().setId(id);
 
         for (Tree child : entity.getChildren()) {
             save(child, handle);
@@ -108,21 +128,35 @@ public class JdbcTreeRepositoryImpl implements TreeRepository {
     }
 
     @Override
-    public void delete(Tree entity) {
-        Handle handle = dbi.open();
-        handle.execute("delete from tree where id = ?", entity.getNode().getId());
-        handle.close();
+    public void delete(final Tree entity) {
+        dbi.withHandle(new HandleCallback<Object>() {
+            @Override
+            public Object withHandle(Handle handle) throws Exception {
+                handle.createStatement("delete from tree where id = :id")
+                        .bind("id", entity.getNode().getId())
+                        .execute();
+                return null;
+            }
+        });
     }
 
     @Override
-    public void update(Tree entity) {
-        Handle handle = dbi.open();
+    public void update(final Tree entity) {
+        dbi.withHandle(new HandleCallback<Object>() {
+            @Override
+            public Object withHandle(Handle handle) throws Exception {
+                final Node node = entity.getNode();
 
-        Node node = entity.getNode();
-        handle.execute("update tree set name = ?, description = ?, parent_id = ?, children_order = ?",
-                node.getName(), node.getDescription(), node.getParentId(), node.getOrder());
+                handle.createStatement("update tree set name = :name, description = :description, parent_id = :parentId, children_order = :order")
+                        .bind("name", node.getName())
+                        .bind("description", node.getDescription())
+                        .bind("parentId", node.getParentId())
+                        .bind("order", node.getOrder())
+                        .execute();
 
-        handle.close();
+                return null;
+            }
+        });
     }
 
     public static class NodeMapper extends TypedMapper<Node> {

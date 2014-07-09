@@ -8,10 +8,11 @@ import org.junit.Before;
 import org.junit.Test;
 import org.skife.jdbi.v2.DBI;
 import org.skife.jdbi.v2.Handle;
+import org.skife.jdbi.v2.tweak.HandleCallback;
 
 import java.util.Locale;
 
-public class JdbcTreeRepositoryBenchmarkTest {
+public class JdbcTreeRepositoryBenchmark {
 
     private final DBI dbi = PersistenceServiceImpl.getInstance().getDbi();
     private final Faker faker = new Faker(Locale.US);
@@ -21,18 +22,22 @@ public class JdbcTreeRepositoryBenchmarkTest {
 
     @Before
     public void setUp() throws Exception {
-        Handle handle = dbi.open();
-        JdbcTreeRepositoryImplTest.reCreateTreeTable(handle);
+        dbi.withHandle(new HandleCallback<Object>() {
+            @Override
+            public Object withHandle(Handle handle) throws Exception {
+                JdbcTreeRepositoryImplTest.reCreateTreeTable(handle);
 
-        Tree tree = makeTree(5, 4);
-        repository = new JdbcTreeRepositoryImpl(dbi);
+                Tree tree = makeTree(5, 5);
+                repository = new JdbcTreeRepositoryImpl(dbi);
 
-        long start = System.currentTimeMillis();
-        repository.save(tree);
-        System.out.println("Time to save tree: " + (System.currentTimeMillis() - start) + " ms");
+                long start = System.currentTimeMillis();
+                repository.save(tree);
+                System.out.println("Time to save tree: " + (System.currentTimeMillis() - start) + " ms");
 
-        rootId = JdbcTreeRepositoryImplTest.getId(handle, tree.findRoot().getNode().getName());
-        handle.close();
+                rootId = tree.getId();
+                return null;
+            }
+        });
     }
 
     @Test
@@ -41,7 +46,7 @@ public class JdbcTreeRepositoryBenchmarkTest {
         Tree entireTree = repository.findEntireTree(rootId);
         System.out.println("Time to find tree: " + (System.currentTimeMillis() - start) + " ms");
 
-        System.out.println(entireTree.prettyPrint());
+//        System.out.println(entireTree.prettyPrint());
     }
 
     private Tree makeTree(int depth, int maxWidth) {
