@@ -31,7 +31,20 @@ public class JdbcTreeRepositoryImpl implements TreeRepository {
 
     @Override
     public Tree findEntireTree(Integer rootId) {
-        return findById(rootId);
+        String sql = BASE_RECURSIVE_QUERY +
+                "SELECT t.id, t.name, t.description, t.parent_id, t.children_order, 1 AS depth\n" +
+                "FROM children t\n";
+
+        Handle handle = dbi.open();
+
+        List<Node> nodes = handle.createQuery(sql)
+                .bind("id", rootId)
+                .map(new NodeMapper())
+                .list();
+
+        handle.close();
+
+        return Tree.fromList(nodes);
     }
 
     @Override
@@ -56,9 +69,9 @@ public class JdbcTreeRepositoryImpl implements TreeRepository {
 
     @Override
     public Tree findById(Integer id) {
-        String sql = BASE_RECURSIVE_QUERY +
-                "SELECT t.id, t.name, t.description, t.parent_id, t.children_order, 1 AS depth\n" +
-                "FROM children t\n";
+        String sql = "SELECT t.id, t.name, t.description, t.parent_id, t.children_order, 1 AS depth\n" +
+                "FROM tree t\n" +
+                "WHERE t.id = :id";
 
         Handle handle = dbi.open();
 
@@ -74,22 +87,36 @@ public class JdbcTreeRepositoryImpl implements TreeRepository {
 
     @Override
     public RepositoryResult<Tree> findAll() {
-        return null;
+        throw new UnsupportedOperationException("Method not supported for tree data structures");
     }
 
     @Override
     public void save(Tree entity) {
+        Handle handle = dbi.open();
 
+        Node node = entity.getNode();
+        handle.execute("insert into tree (name, description, parent_id, children_order) values (?, ?, ?, ?)",
+                node.getName(), node.getDescription(), node.getParentId(), node.getOrder());
+
+        handle.close();
     }
 
     @Override
     public void delete(Tree entity) {
-
+        Handle handle = dbi.open();
+        handle.execute("delete from tree where id = ?", entity.getNode().getId());
+        handle.close();
     }
 
     @Override
     public void update(Tree entity) {
+        Handle handle = dbi.open();
 
+        Node node = entity.getNode();
+        handle.execute("update tree set name = ?, description = ?, parent_id = ?, children_order = ?",
+                node.getName(), node.getDescription(), node.getParentId(), node.getOrder());
+
+        handle.close();
     }
 
     public static class NodeMapper extends TypedMapper<Node> {

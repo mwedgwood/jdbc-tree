@@ -1,5 +1,6 @@
 package com.github.mwedgwood.repository;
 
+import com.github.mwedgwood.model.tree.Node;
 import com.github.mwedgwood.model.tree.Tree;
 import com.github.mwedgwood.service.PersistenceServiceImpl;
 import org.junit.Before;
@@ -84,11 +85,26 @@ public class JdbcTreeRepositoryImplTest {
 
         assertNotNull(tree);
         assertEquals("child1", tree.getNode().getName());
-        assertEquals(1, tree.getChildren().size());
+        assertEquals(0, tree.getChildren().size());
+    }
 
-        Tree childOfchildOne = tree.getChildren().get(0);
-        assertEquals("child1.1", childOfchildOne.getNode().getName());
-        assertEquals(0, childOfchildOne.getChildren().size());
+    @Test
+    public void testSave() throws Exception {
+        Tree newTree = new Tree(new Node().setName("new node").setDescription("description").setParentId(null).setOrder(0));
+
+        JdbcTreeRepositoryImpl jdbcTreeRepository = new JdbcTreeRepositoryImpl(dbi);
+        jdbcTreeRepository.save(newTree);
+
+        Handle handle = dbi.open();
+        Integer id = getId(handle, "new node");
+        handle.close();
+
+        Tree newTreeFromDb = jdbcTreeRepository.findById(id);
+        assertNotNull(newTreeFromDb);
+        assertEquals("new node", newTreeFromDb.getNode().getName());
+        assertEquals("description", newTreeFromDb.getNode().getDescription());
+        assertEquals(0, newTreeFromDb.getNode().getParentId().intValue());
+        assertEquals(0, newTreeFromDb.getNode().getOrder().intValue());
     }
 
     private Integer getId(Handle handle, String name) {
