@@ -9,8 +9,7 @@ import org.skife.jdbi.v2.DBI;
 import org.skife.jdbi.v2.Handle;
 import org.skife.jdbi.v2.util.IntegerMapper;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.*;
 
 public class JdbcTreeRepositoryImplTest {
 
@@ -74,13 +73,9 @@ public class JdbcTreeRepositoryImplTest {
 
     @Test
     public void testFindById() throws Exception {
-        Handle handle = dbi.open();
-        Integer treeId = getId(handle, "child1");
-        handle.close();
-
         JdbcTreeRepositoryImpl repository = new JdbcTreeRepositoryImpl(dbi);
 
-        Tree tree = repository.findById(treeId);
+        Tree tree = repository.findById(getId("child1"));
         System.out.println(tree.prettyPrint());
 
         assertNotNull(tree);
@@ -95,16 +90,55 @@ public class JdbcTreeRepositoryImplTest {
         JdbcTreeRepositoryImpl jdbcTreeRepository = new JdbcTreeRepositoryImpl(dbi);
         jdbcTreeRepository.save(newTree);
 
-        Handle handle = dbi.open();
-        Integer id = getId(handle, "new node");
-        handle.close();
+        Tree treeFromDb = jdbcTreeRepository.findById(getId("new node"));
+        assertNotNull(treeFromDb);
+        assertEquals("new node", treeFromDb.getNode().getName());
+        assertEquals("description", treeFromDb.getNode().getDescription());
+        assertEquals(0, treeFromDb.getNode().getParentId().intValue());
+        assertEquals(0, treeFromDb.getNode().getOrder().intValue());
+    }
 
-        Tree newTreeFromDb = jdbcTreeRepository.findById(id);
-        assertNotNull(newTreeFromDb);
-        assertEquals("new node", newTreeFromDb.getNode().getName());
-        assertEquals("description", newTreeFromDb.getNode().getDescription());
-        assertEquals(0, newTreeFromDb.getNode().getParentId().intValue());
-        assertEquals(0, newTreeFromDb.getNode().getOrder().intValue());
+    @Test
+    public void testDelete() throws Exception {
+        Tree newTree = new Tree(new Node().setName("new node").setDescription("description").setParentId(null).setOrder(0));
+
+        JdbcTreeRepositoryImpl jdbcTreeRepository = new JdbcTreeRepositoryImpl(dbi);
+        jdbcTreeRepository.save(newTree);
+
+        Integer id = getId("new node");
+
+        Tree treeFromDb = jdbcTreeRepository.findById(id);
+        jdbcTreeRepository.delete(treeFromDb);
+
+        Tree deletedTree = jdbcTreeRepository.findById(id);
+        assertNull(deletedTree);
+    }
+
+    @Test
+    public void testUpdate() throws Exception {
+        Tree newTree = new Tree(new Node().setName("new node").setDescription("description").setParentId(null).setOrder(0));
+
+        JdbcTreeRepositoryImpl jdbcTreeRepository = new JdbcTreeRepositoryImpl(dbi);
+        jdbcTreeRepository.save(newTree);
+
+        Integer id = getId("new node");
+
+        Tree treeFromDb = jdbcTreeRepository.findById(id);
+        treeFromDb.getNode().setName("updated node");
+        jdbcTreeRepository.update(treeFromDb);
+
+        treeFromDb = jdbcTreeRepository.findById(id);
+        assertEquals("updated node", treeFromDb.getNode().getName());
+        assertEquals("description", treeFromDb.getNode().getDescription());
+        assertEquals(0, treeFromDb.getNode().getParentId().intValue());
+        assertEquals(0, treeFromDb.getNode().getOrder().intValue());
+    }
+
+    private Integer getId(String name) {
+        Handle handle = dbi.open();
+        Integer id = getId(handle, name);
+        handle.close();
+        return id;
     }
 
     private Integer getId(Handle handle, String name) {
